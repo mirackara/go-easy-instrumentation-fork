@@ -73,7 +73,7 @@ func setOutputFilePath(outputFilePath, applicationPath string) (string, error) {
 
 const LoadMode = packages.LoadSyntax | packages.NeedForTest
 
-func Instrument(packagePath string) {
+func Instrument(packagePath string, patterns ...string) {
 	if packagePath == "" {
 		cobra.CheckErr("path argument cannot be empty")
 	}
@@ -88,7 +88,12 @@ func Instrument(packagePath string) {
 		comment.EnableConsolePrinter(packagePath)
 	}
 
-	pkgs, err := decorator.Load(&packages.Config{Dir: packagePath, Mode: LoadMode, Tests: true}, defaultPackageName)
+	loadPatterns := patterns
+	if len(loadPatterns) == 0 {
+		loadPatterns = []string{defaultPackageName}
+	}
+
+	pkgs, err := decorator.Load(&packages.Config{Dir: packagePath, Mode: LoadMode, Tests: true}, loadPatterns...)
 	cobra.CheckErr(err)
 
 	manager := parser.NewInstrumentationManager(pkgs, defaultAppName, defaultAgentVariableName, outputFile, packagePath)
