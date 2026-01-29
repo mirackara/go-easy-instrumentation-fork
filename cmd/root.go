@@ -5,10 +5,11 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "go-easy-instrumentation",
-	Short: "go-easy-instrumentation adds basic application monitoring instrumentation API calls to your program source code",
-	Long:  "go-easy-instrumentation adds basic application monitoring instrumentation API calls to your program source code",
-	Args:  cobra.MaximumNArgs(1),
+	Use:     "go-easy-instrumentation",
+	Short:   "go-easy-instrumentation adds basic application monitoring instrumentation API calls to your program source code",
+	Long:    "go-easy-instrumentation adds basic application monitoring instrumentation API calls to your program source code",
+	Version: AppVersion,
+	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			runInteractiveMode(cmd, args)
