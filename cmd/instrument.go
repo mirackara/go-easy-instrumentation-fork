@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,11 +24,9 @@ const (
 	defaultAppName           = ""
 	defaultOutputFilePath    = ""
 	defaultDiffFileName      = "new-relic-instrumentation.diff"
-	defaultDebug             = false
 )
 
 var (
-	debug    bool
 	diffFile string
 )
 
@@ -81,7 +78,6 @@ const LoadMode = packages.LoadSyntax | packages.NeedForTest
 // Bubble Tea Model
 type model struct {
 	spinner     spinner.Model
-	progress    progress.Model
 	stepDesc    string
 	totalSteps  int
 	currentStep int
@@ -108,7 +104,6 @@ func initialModel(pkgPath, outputFile string) model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#1CE783"))
 	return model{
 		spinner:    s,
-		progress:   progress.New(progress.WithGradient("#008C99", "#1CE783")),
 		stepDesc:   "Loading packages...",
 		totalSteps: 8,
 		pkgPath:    pkgPath,
@@ -136,6 +131,62 @@ func Instrument(packagePath string, patterns ...string) {
 		comment.EnableConsolePrinter(packagePath)
 	}
 
+	// If debug mode is enabled, run in text mode (no TUI)
+	if debug {
+		runTextMode(packagePath, patterns, outputFile)
+		return
+	}
+
+	// Normal TUI mode
+	runTUIMode(packagePath, patterns, outputFile)
+}
+
+func runTextMode(packagePath string, patterns []string, outputFile string) {
+	fmt.Printf("Instrumentation started for %s\n", packagePath)
+	fmt.Printf("Output file: %s\n\n", outputFile)
+
+	loadPatterns := patterns
+	if len(loadPatterns) == 0 {
+		loadPatterns = []string{defaultPackageName}
+	}
+
+	fmt.Println(" -> Loading packages...")
+	pkgs, err := decorator.Load(&packages.Config{Dir: packagePath, Mode: LoadMode, Tests: true}, loadPatterns...)
+	if err != nil {
+		fmt.Printf("Error loading packages: %v\n", err)
+		os.Exit(1)
+	}
+
+	manager := parser.NewInstrumentationManager(pkgs, defaultAppName, defaultAgentVariableName, outputFile, packagePath)
+
+	steps := []struct {
+		desc string
+		fn   func() error
+	}{
+		{"Creating diff file", manager.CreateDiffFile},
+		{"Detecting dependencies", manager.DetectDependencyIntegrations},
+		{"Tracing package calls", manager.TracePackageCalls},
+		{"Scanning application", manager.ScanApplication},
+		{"Instrumenting application", manager.InstrumentApplication},
+		{"Resolving unit tests", manager.ResolveUnitTests},
+		{"Adding required modules", manager.AddRequiredModules},
+		{"Writing diff file", func() error {
+			comment.WriteAll()
+			return manager.WriteDiff(func(msg string) {})
+		}},
+	}
+
+	for _, step := range steps {
+		if err := step.fn(); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	fmt.Printf("\nDone! Changes written to: %s\nTip: Apply these changes with: git apply %s\n", outputFile, outputFile)
+}
+
+func runTUIMode(packagePath string, patterns []string, outputFile string) {
 	// Channel to receive updates from the worker
 	updates := make(chan tea.Msg)
 
@@ -219,12 +270,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-	case progress.FrameMsg:
-		newModel, cmd := m.progress.Update(msg)
-		if p, ok := newModel.(progress.Model); ok {
-			m.progress = p
-		}
-		return m, cmd
 	case pkgLoadedMsg:
 		m.packages = msg
 		m.stepDesc = "Starting instrumentation..."
@@ -232,8 +277,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		m.currentStep++
 		m.stepDesc = msg.desc
-		cmd := m.progress.SetPercent(float64(m.currentStep) / float64(m.totalSteps))
-		return m, tea.Batch(cmd, waitForNext(m.sub))
+		// We just update the description, no progress bar to update
+		return m, waitForNext(m.sub)
 	case errMsg:
 		m.err = msg
 		return m, tea.Quit
@@ -268,19 +313,11 @@ func (m model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("\nError: %v\n", m.err)
 	}
-	if m.err != nil {
-		return fmt.Sprintf("\nError: %v\n", m.err)
-	}
 
 	pad := strings.Repeat(" ", padding(m.stepDesc, 30))
 
-	if m.packages == nil {
-		// Loading phase
-		return fmt.Sprintf("\n %s %s%s\n\n", m.spinner.View(), m.stepDesc, pad)
-	}
-
-	// Instrumentation phase
-	return fmt.Sprintf("\n %s%s\n %s\n\n", m.stepDesc, pad, m.progress.View())
+	// Simple spinner view for all phases
+	return fmt.Sprintf("\n %s %s%s\n\n", m.spinner.View(), m.stepDesc, pad)
 }
 
 func padding(s string, width int) int {
@@ -292,7 +329,6 @@ func padding(s string, width int) int {
 }
 
 func init() {
-	instrumentCmd.Flags().BoolVarP(&debug, "debug", "D", defaultDebug, "enable debugging output")
 	instrumentCmd.Flags().StringVarP(&diffFile, "output", "o", defaultOutputFilePath, "specify diff output file path")
 	cobra.MarkFlagFilename(instrumentCmd.Flags(), "output", ".diff") // for file completion
 

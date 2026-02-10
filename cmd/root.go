@@ -19,8 +19,14 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var debug bool
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		cobra.CheckErr(err)
 	}
+}
+
+func init() {
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "enable debugging output")
 }
