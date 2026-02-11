@@ -14,6 +14,7 @@ import (
 	"github.com/newrelic/go-easy-instrumentation/internal/comment"
 	"github.com/newrelic/go-easy-instrumentation/parser"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -131,8 +132,8 @@ func Instrument(packagePath string, patterns ...string) {
 		comment.EnableConsolePrinter(packagePath)
 	}
 
-	// If debug mode is enabled, run in text mode (no TUI)
-	if debug {
+	// If debug mode is enabled or no terminal is available (CI/CD), run in text mode (no TUI)
+	if debug || !term.IsTerminal(int(os.Stdout.Fd())) {
 		runTextMode(packagePath, patterns, outputFile)
 		return
 	}
