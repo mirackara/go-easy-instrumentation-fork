@@ -142,10 +142,27 @@ func Instrument(packagePath string, patterns ...string) {
 	runTUIMode(packagePath, patterns, outputFile)
 }
 
+// runTextMode runs the instrumentation pipeline with plain text output to stdout.
+// This is used when the TUI is unavailable (e.g. CI/CD, piped output) or when
+// the --debug flag is enabled. It delegates to instrumentPackages for the core
+// logic and handles printing status and exit on error.
 func runTextMode(packagePath string, patterns []string, outputFile string) {
 	fmt.Printf("Instrumentation started for %s\n", packagePath)
 	fmt.Printf("Output file: %s\n\n", outputFile)
 
+	if err := instrumentPackages(packagePath, patterns, outputFile); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\nDone! Changes written to: %s\nTip: Apply these changes with: git apply %s\n", outputFile, outputFile)
+}
+
+// instrumentPackages loads Go packages from packagePath, runs the full
+// instrumentation pipeline, and writes the resulting diff to outputFile.
+// It returns an error rather than exiting the process, making it safe to
+// call from both runTextMode (which handles os.Exit) and from tests.
+func instrumentPackages(packagePath string, patterns []string, outputFile string) error {
 	loadPatterns := patterns
 	if len(loadPatterns) == 0 {
 		loadPatterns = []string{defaultPackageName}
@@ -154,8 +171,7 @@ func runTextMode(packagePath string, patterns []string, outputFile string) {
 	fmt.Println(" -> Loading packages...")
 	pkgs, err := decorator.Load(&packages.Config{Dir: packagePath, Mode: LoadMode, Tests: true}, loadPatterns...)
 	if err != nil {
-		fmt.Printf("Error loading packages: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("loading packages: %w", err)
 	}
 
 	manager := parser.NewInstrumentationManager(pkgs, defaultAppName, defaultAgentVariableName, outputFile, packagePath)
@@ -179,12 +195,11 @@ func runTextMode(packagePath string, patterns []string, outputFile string) {
 
 	for _, step := range steps {
 		if err := step.fn(); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("%s: %w", step.desc, err)
 		}
 	}
 
-	fmt.Printf("\nDone! Changes written to: %s\nTip: Apply these changes with: git apply %s\n", outputFile, outputFile)
+	return nil
 }
 
 func runTUIMode(packagePath string, patterns []string, outputFile string) {

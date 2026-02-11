@@ -305,3 +305,85 @@ func TestWaitForNext(t *testing.T) {
 		}
 	})
 }
+
+// Integration tests for instrumentPackages
+
+func TestInstrumentPackages_BasicGin(t *testing.T) {
+	packagePath := filepath.Join("..", "end-to-end-tests", "gin-examples", "basic")
+	if _, err := os.Stat(packagePath); err != nil {
+		t.Skipf("test fixture not found: %v", err)
+	}
+
+	outputFile := filepath.Join(t.TempDir(), "output.diff")
+
+	err := instrumentPackages(packagePath, nil, outputFile)
+	if err != nil {
+		t.Fatalf("instrumentPackages failed: %v", err)
+	}
+
+	// Verify the diff file was created and has content
+	info, err := os.Stat(outputFile)
+	if err != nil {
+		t.Fatalf("output file not created: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Error("output diff file is empty, expected instrumentation changes")
+	}
+}
+
+func TestInstrumentPackages_HttpApp(t *testing.T) {
+	packagePath := filepath.Join("..", "end-to-end-tests", "http-app")
+	if _, err := os.Stat(packagePath); err != nil {
+		t.Skipf("test fixture not found: %v", err)
+	}
+
+	outputFile := filepath.Join(t.TempDir(), "output.diff")
+
+	err := instrumentPackages(packagePath, nil, outputFile)
+	if err != nil {
+		t.Fatalf("instrumentPackages failed: %v", err)
+	}
+
+	info, err := os.Stat(outputFile)
+	if err != nil {
+		t.Fatalf("output file not created: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Error("output diff file is empty, expected instrumentation changes")
+	}
+}
+
+func TestInstrumentPackages_CustomPatterns(t *testing.T) {
+	packagePath := filepath.Join("..", "end-to-end-tests", "gin-examples", "basic")
+	if _, err := os.Stat(packagePath); err != nil {
+		t.Skipf("test fixture not found: %v", err)
+	}
+
+	outputFile := filepath.Join(t.TempDir(), "output.diff")
+
+	// Use explicit patterns instead of the default "./..."
+	err := instrumentPackages(packagePath, []string{"./..."}, outputFile)
+	if err != nil {
+		t.Fatalf("instrumentPackages with custom patterns failed: %v", err)
+	}
+
+	info, err := os.Stat(outputFile)
+	if err != nil {
+		t.Fatalf("output file not created: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Error("output diff file is empty, expected instrumentation changes")
+	}
+}
+
+func TestInstrumentPackages_InvalidPackagePath(t *testing.T) {
+	outputFile := filepath.Join(t.TempDir(), "output.diff")
+
+	err := instrumentPackages("/nonexistent/path/to/package", nil, outputFile)
+	if err == nil {
+		t.Fatal("expected error for invalid package path, got nil")
+	}
+	if !strings.Contains(err.Error(), "loading packages") {
+		t.Errorf("expected error about loading packages, got: %v", err)
+	}
+}
