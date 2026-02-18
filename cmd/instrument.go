@@ -28,7 +28,8 @@ const (
 )
 
 var (
-	diffFile string
+	diffFile    string
+	excludeDirs string
 )
 
 var instrumentCmd = &cobra.Command{
@@ -346,6 +347,7 @@ func padding(s string, width int) int {
 
 func init() {
 	instrumentCmd.Flags().StringVarP(&diffFile, "output", "o", defaultOutputFilePath, "specify diff output file path")
+	instrumentCmd.Flags().StringVarP(&excludeDirs, "exclude", "e", "", "comma-separated list of folders to exclude from instrumentation")
 	cobra.MarkFlagFilename(instrumentCmd.Flags(), "output", ".diff") // for file completion
 
 	rootCmd.AddCommand(instrumentCmd)

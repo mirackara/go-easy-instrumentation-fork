@@ -11,7 +11,18 @@ import (
 )
 
 func runInteractiveMode(cmd *cobra.Command, args []string) {
-	files, err := scanGoFiles(".", nil)
+	// Parse exclusions from the --exclude flag if provided
+	var exclusions []string
+	if excludeDirs != "" {
+		for _, dir := range strings.Split(excludeDirs, ",") {
+			trimmed := strings.TrimSpace(dir)
+			if trimmed != "" {
+				exclusions = append(exclusions, trimmed)
+			}
+		}
+	}
+
+	files, err := scanGoFiles(".", exclusions)
 	if err != nil {
 		cobra.CheckErr(fmt.Errorf("failed to scan for Go files: %v", err))
 	}
@@ -22,36 +33,6 @@ func runInteractiveMode(cmd *cobra.Command, args []string) {
 	}
 
 	printFiles(files)
-
-	if promptUser("Do you want to exclude any folders?") {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Enter folder names to exclude (comma separated): ")
-		exclusionsStr, _ := reader.ReadString('\n')
-		exclusionsStr = strings.TrimSpace(exclusionsStr)
-		var exclusions []string
-		if exclusionsStr != "" {
-			parts := strings.Split(exclusionsStr, ",")
-			for _, p := range parts {
-				trimmed := strings.TrimSpace(p)
-				if trimmed != "" {
-					exclusions = append(exclusions, trimmed)
-				}
-			}
-		}
-
-		if len(exclusions) > 0 {
-			files, err = scanGoFiles(".", exclusions)
-			if err != nil {
-				cobra.CheckErr(fmt.Errorf("failed to scan for Go files: %v", err))
-			}
-			printFiles(files)
-		}
-	}
-
-	if len(files) == 0 {
-		fmt.Println("No Go files left after exclusion.")
-		return
-	}
 
 	if promptUser("Do you want to run instrumentation on these files?") {
 		// Pass the detected files as patterns to Instrument
