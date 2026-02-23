@@ -19,12 +19,12 @@ This project, its code, and the UX are under heavy development, and should be ex
 
 This tool doesn't interfere with your application's operation, and it doesn't make any changes to your code directly. Here's what happens when you run the tool:
 
-* It analyzes your code and suggests changes that allow the Go agent to capture telemetry data. 
-* You review the changes in the .diff file and decide which changes to add to your source code.
+* It analyzes your code and suggests changes that allow the Go agent to capture telemetry data.
+* You watch the progress in real-time as the tool scans and instruments your source files.
+* A diff file is generated with the proposed changes.
+* You apply the changes to your source code using `git apply <diff-file>`.
 
 As part of the analysis, this tool may invoke `go get` or other Go language toolchain commands which may modify your `go.mod` file, but not your actual source code.
-
-**IMPORTANT:** This tool can't detect if you already have New Relic instrumentation. Please only use this on applications without any instrumentation.
 
 ## What is instrumented?
 
@@ -67,6 +67,10 @@ Installation Steps have been moved to: https://docs.newrelic.com/docs/apm/agents
 4. Build and run from the root of the repo:
     ```
     go run . instrument $MY_APP
+    ```
+5.  Once the instrumentation is complete, the tool will output the path to a diff file. Apply the changes to your source code:
+    ```sh
+    git apply <path-to-diff-file>
     ```
 
 
